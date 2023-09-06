@@ -1,4 +1,11 @@
-import datetime
+import json
 
-hoje = datetime.datetime.now().date() - datetime.datetime(day=4, month=4, year=2023).date()
-print(hoje)
+from JsonDB import JsonDB
+
+
+db = JsonDB(repository='cadastro')
+db.collection('cad_pessoas')
+for x in range(500):
+    db['_IDENTITY'] = {'Nome': 'Rodrigo', 'Sobrenome': 'Lopes'}
+db.commit()
+print(db[1])
