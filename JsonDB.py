@@ -81,6 +81,7 @@ class JsonDB:
     def __delitem__(self, key: str | int | float):
         self.__validate_key_type(key)
         self.__validate_collection_selected()
+        key = str(key)
         try:
             del self.__Data[key]
         except KeyError:
@@ -94,6 +95,7 @@ class JsonDB:
     def __contains__(self, key: str | int | float):
         self.__validate_key_type(key)
         self.__validate_collection_selected()
+        key = str(key)
         return key in self.__Data
 
     def __len__(self):
@@ -122,6 +124,7 @@ class JsonDB:
     def pop(self, key: str | int | float):
         self.__validate_key_type(key)
         self.__validate_collection_selected()
+        key = str(key)
         try:
             return self.__Data.pop(key)
         except KeyError:
@@ -216,7 +219,11 @@ class JsonDB:
 
     @property
     def all_collections(self):
-        return self.__Config['Collections']
+        return self.__Config['Collections'][self.__Repository]
+
+    @property
+    def all_repositories(self):
+        return list(self.__Config['Repositories'].keys())
 
     @property
     def values(self):
