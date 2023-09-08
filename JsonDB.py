@@ -140,9 +140,52 @@ class JsonDB:
         self.__save__(f'{self.__Path}/{self.__Collection}.json', self.__Data, separators=(',', ':'))
         self.__save_config()
 
+    @property
+    def collections(self):
+        return self.__Config['Collections'][self.__Repository]
+
+    @property
+    def repositories(self):
+        return list(self.__Config['Repositories'].keys())
+
+    @property
+    def values(self):
+        self.__validate_collection_selected()
+        return list(self.__Data.values())
+
+    @property
+    def keys(self):
+        self.__validate_collection_selected()
+        return list(self.__Data.keys())
+
     def __validate_collection_selected(self):
         if self.__Collection is None:
             raise NameError('Table not found: No database selected, use "database(name: string)" to select one')
+
+    def __load_config(self):
+        config = self.__load__('config.json')
+        config = {} if config is None else config
+        edited = False
+        if 'Collections' not in config:
+            edited = True
+            config['Collections'] = {}
+            if self.__Repository not in config['Collections']:
+                edited = True
+                config['Collections'][self.__Repository] = []
+        if 'Repositories' not in config:
+            edited = True
+            config['Repositories'] = {}
+
+        if edited:
+            self.__save_config()
+        self.__Config = config
+
+    def __save_config(self):
+        self.__save__('config.json', self.__Config, 4)
+
+    @staticmethod
+    def __custom_formatwarning(msg, *args, **kwargs):
+        return str(msg) + '\n'
 
     @staticmethod
     def __validate_key_type(key):
@@ -191,56 +234,3 @@ class JsonDB:
             warnings.formatwarning = JsonDB.__custom_formatwarning
             warnings.warn(f'The file "{file}" could not be decoded or is empty, it will be recreated!')
             return {}
-
-    def __load_config(self):
-        config = self.__load__('config.json')
-        config = {} if config is None else config
-        edited = False
-        if 'Collections' not in config:
-            edited = True
-            config['Collections'] = {}
-            if self.__Repository not in config['Collections']:
-                edited = True
-                config['Collections'][self.__Repository] = []
-        if 'Repositories' not in config:
-            edited = True
-            config['Repositories'] = {}
-
-        if edited:
-            self.__save_config()
-        self.__Config = config
-
-    def __save_config(self):
-        self.__save__('config.json', self.__Config, 4)
-
-    @staticmethod
-    def __custom_formatwarning(msg, *args, **kwargs):
-        return str(msg) + '\n'
-
-    @property
-    def all_collections(self):
-        return self.__Config['Collections'][self.__Repository]
-
-    @property
-    def all_repositories(self):
-        return list(self.__Config['Repositories'].keys())
-
-    @property
-    def values(self):
-        self.__validate_collection_selected()
-        return self.__Data.values()
-
-    def all_values(self):
-        self.__validate_collection_selected()
-        for key in self.__Data:
-            yield self.__Data[key]
-
-    @property
-    def keys(self):
-        self.__validate_collection_selected()
-        return self.__Data.keys()
-
-    def all_keys(self):
-        self.__validate_collection_selected()
-        for key in self.__Data:
-            yield key
