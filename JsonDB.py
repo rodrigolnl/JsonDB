@@ -1,8 +1,16 @@
 import json
 import os
-import msvcrt
+import sys
 import time
 import warnings
+if sys.platform == 'win32':
+    import msvcrt
+else:
+    import fcntl
+
+
+class Identity:
+    pass
 
 
 class JsonDB:
@@ -13,12 +21,17 @@ class JsonDB:
                 os.mkdir(base_path)
             except FileExistsError:
                 pass
+
         self.__Path = f'{path if path else base_path}\\{repository}'
-        self.__Table = None
+        self.__Collection = None
+        self.__Repository = repository
         self.__Data: dict[str | int | float] = {}
-        self.__Config = {}
+        self.__Config: dict[str, dict[str, list | str]] = {}
         self.__load_config()
-        self.__identity = None
+        self.__IdentityValue = None
+
+        self.__DeletedCollections = []
+
         if repository not in self.__Config['Repositories']:
             self.__Config['Repositories'][repository] = self.__Path
             self.__save_config()
@@ -32,7 +45,7 @@ class JsonDB:
 
     def __getitem__(self, key: str | int | float):
         self.__validate_key_type(key)
-        self.__validate_database_selected()
+        self.__validate_collection_selected()
         key = str(key)
         try:
             return self.__Data[key]
@@ -40,79 +53,92 @@ class JsonDB:
             self.__Data[key] = {}
             return self.__Data[key]
         except TypeError:
-            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Table}" database') from None
+            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
 
-    def __setitem__(self, key: str | int | float, value):
-        if key == '_IDENTITY':
+    def __setitem__(self, key: str | int | float | type[Identity], value):
+        if key is not Identity and type(key) not in [str, int, float]:
+            raise KeyError(f'Key invalid: The key "{key}" is not a valid type of key')
+
+        if key is Identity or key.upper() == '_IDENTITY':
             try:
-                self.__identity = int(self.__identity)
+                self.__IdentityValue = int(self.__IdentityValue)
             except ValueError:
-                self.__identity = 1
-            while str(self.__identity) in self.__Data:
-                self.__identity += 1
-            key = self.__identity
+                self.__IdentityValue = 1
+            while str(self.__IdentityValue) in self.__Data:
+                self.__IdentityValue += 1
+            key = self.__IdentityValue
 
         self.__validate_key_type(key)
-        self.__validate_database_selected()
+        self.__validate_collection_selected()
         key = str(key)
         try:
             self.__Data[key] = value
         except KeyError:
-            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Table}" database') from None
+            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
         except TypeError:
-            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Table}" database') from None
+            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
 
     def __delitem__(self, key: str | int | float):
         self.__validate_key_type(key)
-        self.__validate_database_selected()
+        self.__validate_collection_selected()
         try:
             del self.__Data[key]
         except KeyError:
-            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Table}" database') from None
+            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
 
     def __iter__(self):
-        self.__validate_database_selected()
+        self.__validate_collection_selected()
         for key in self.__Data:
-            yield self.__Data[key]
+            yield key
 
     def __contains__(self, key: str | int | float):
         self.__validate_key_type(key)
-        self.__validate_database_selected()
+        self.__validate_collection_selected()
         return key in self.__Data
 
+    def __len__(self):
+        self.__validate_collection_selected()
+        return len(self.__Data)
+
     def collection(self, name: str):
+        if name in self.__DeletedCollections:
+            raise KeyError(f'Deleted collection: The collection is marked to be deleted.')
         if type(name) is not str:
             raise TypeError(f'Wrong type: The table\'s name needs to be a string')
         if name == '':
             raise ValueError(f'Wrong value: The table\'s name can not be an empty string')
-        self.__Table = name
-        self.__Data = self.__load__(f'{self.__Path}/{self.__Table}.json')
-        if name not in self.__Config['Collections']:
-            self.__Config['Collections'].append(name)
-            self.__save_config()
+        self.__Collection = name
+        self.__Data = self.__load__(f'{self.__Path}/{self.__Collection}.json')
+        if name not in self.__Config['Collections'][self.__Repository]:
+            self.__Config['Collections'][self.__Repository].append(name)
 
         keys = list(self.__Data.keys())
-        self.__identity = keys[-1] if keys else 1
+        self.__IdentityValue = keys[-1] if keys else 1
         return self
 
-    def delete(self, database_name: str = None):
-        self.__Table = None
+    def delete(self, collection: str = None):
+        self.__DeletedCollections.append(collection)
 
     def pop(self, key: str | int | float):
         self.__validate_key_type(key)
-        self.__validate_database_selected()
+        self.__validate_collection_selected()
         try:
             return self.__Data.pop(key)
         except KeyError:
-            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Table}" database') from None
+            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
         except TypeError:
-            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Table}" database') from None
+            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
 
     def commit(self):
-        self.__save__(f'{self.__Path}/{self.__Table}.json', self.__Data)
+        for collection in self.__DeletedCollections:
+            self.__Config['Collections'][self.__Repository].remove(collection)
+            if os.path.exists(f'{self.__Path}/{collection}.json'):
+                os.remove(f'{self.__Path}/{collection}.json')
+        self.__save__(f'{self.__Path}/{self.__Collection}.json', self.__Data, separators=(',', ':'))
+        self.__save_config()
 
-    def __validate_database_selected(self):
-        if self.__Table is None:
+    def __validate_collection_selected(self):
+        if self.__Collection is None:
             raise NameError('Table not found: No database selected, use "database(name: string)" to select one')
 
     @staticmethod
@@ -121,21 +147,32 @@ class JsonDB:
             raise TypeError(f'Wrong type: The key "{key}" needs to be a string, float or integer')
 
     @staticmethod
-    def __save__(path: str, data, indent: int | None = None):
+    def __save__(path: str, data, indent: int | None = None, separators: tuple[str, str] | None = None):
         finished = False
         file_locked = open(path, 'w')
+        file_locked.seek(0)
         while not finished:
             try:
-                teste = os.path.getsize(path)
-                print(teste)
-                msvcrt.locking(file_locked.fileno(), msvcrt.LK_NBLCK, os.path.getsize(path))
-                json.dump(data, file_locked, indent=indent)
-            except Exception as e:
-                print(e)
-            finally:
-                msvcrt.locking(file_locked.fileno(), msvcrt.LK_UNLCK, os.path.getsize(path))
-                file_locked.close()
+                if sys.platform == 'win32':
+                    msvcrt.locking(file_locked.fileno(), msvcrt.LK_LOCK, 1)
+                else:
+                    fcntl.flock(file_locked.fileno(), fcntl.LOCK_EX)
+
+                json.dump(data, file_locked, indent=indent, separators=separators)
+                file_locked.seek(0)
+
+                if sys.platform == 'win32':
+                    msvcrt.locking(file_locked.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(file_locked.fileno(), fcntl.LOCK_UN)
+
                 finished = True
+            except IOError:
+                time.sleep(0.1)
+            except ValueError:
+                time.sleep(0.1)
+            finally:
+                file_locked.close()
 
     @staticmethod
     def __load__(path: str):
@@ -158,7 +195,10 @@ class JsonDB:
         edited = False
         if 'Collections' not in config:
             edited = True
-            config['Collections'] = []
+            config['Collections'] = {}
+            if self.__Repository not in config['Collections']:
+                edited = True
+                config['Collections'][self.__Repository] = []
         if 'Repositories' not in config:
             edited = True
             config['Repositories'] = {}
@@ -180,8 +220,20 @@ class JsonDB:
 
     @property
     def values(self):
+        self.__validate_collection_selected()
         return self.__Data.values()
+
+    def all_values(self):
+        self.__validate_collection_selected()
+        for key in self.__Data:
+            yield self.__Data[key]
 
     @property
     def keys(self):
+        self.__validate_collection_selected()
         return self.__Data.keys()
+
+    def all_keys(self):
+        self.__validate_collection_selected()
+        for key in self.__Data:
+            yield key

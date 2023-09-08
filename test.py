@@ -1,11 +1,9 @@
-import json
-
-from JsonDB import JsonDB
+from JsonDB import JsonDB, Identity
 
 
 db = JsonDB(repository='cadastro')
 db.collection('cad_pessoas')
-for x in range(500):
-    db['_IDENTITY'] = {'Nome': 'Rodrigo', 'Sobrenome': 'Lopes'}
+db[Identity] = {'None': 'Rodrigo2'}
 db.commit()
 print(db[1])
+

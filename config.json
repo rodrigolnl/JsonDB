@@ -1,0 +1,11 @@
+{
+    "Collections": {
+        "cadastro": [
+            "produtos",
+            "cad_pessoas"
+        ]
+    },
+    "Repositories": {
+        "cadastro": "C:\\Projetos Git\\JsonDB\\repo\\cadastro"
+    }
+}
