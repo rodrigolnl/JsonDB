@@ -53,11 +53,11 @@ class JsonDB:
             self.__Data[key] = {}
             return self.__Data[key]
         except TypeError:
-            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
+            raise KeyError(f'Invalid Key: The key "{key}" is not a valid key in the "{self.__Collection}" collection') from None
 
     def __setitem__(self, key: str | int | float | type[Identity], value):
         if key is not Identity and type(key) not in [str, int, float]:
-            raise KeyError(f'Key invalid: The key "{key}" is not a valid type of key')
+            raise KeyError(f'Wrong type: The "{key}" type is not valid, should be of type [int | float | str | Identity]')
 
         if key is Identity or key.upper() == '_IDENTITY':
             try:
@@ -74,9 +74,9 @@ class JsonDB:
         try:
             self.__Data[key] = value
         except KeyError:
-            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
+            raise KeyError(f'Invalid Key: The key "{key}" is not a valid key in the "{self.__Collection}" collection') from None
         except TypeError:
-            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
+            raise KeyError(f'Invalid Key: The key "{key}" is not a valid key in the "{self.__Collection}" collection') from None
 
     def __delitem__(self, key: str | int | float):
         self.__validate_key_type(key)
@@ -85,7 +85,7 @@ class JsonDB:
         try:
             del self.__Data[key]
         except KeyError:
-            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
+            raise KeyError(f'Key not found: The key "{key}" is not a valid key in the "{self.__Collection}" collection') from None
 
     def __iter__(self):
         self.__validate_collection_selected()
@@ -128,9 +128,9 @@ class JsonDB:
         try:
             return self.__Data.pop(key)
         except KeyError:
-            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
+            raise KeyError(f'Invalid Key: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
         except TypeError:
-            raise KeyError(f'Key not found: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
+            raise KeyError(f'Invalid Key: The key "{key}" is not a valid key in "{self.__Collection}" database') from None
 
     def commit(self):
         for collection in self.__DeletedCollections:
